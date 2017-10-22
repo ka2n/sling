@@ -1,6 +1,7 @@
 package sling
 
 import (
+	"compress/zlib"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -351,6 +352,19 @@ func (s *Sling) Do(req *http.Request, successV, failureV interface{}) (*http.Res
 	}
 	// when err is nil, resp contains a non-nil resp.Body which must be closed
 	defer resp.Body.Close()
+
+	if resp.Header.Get("Content-Encoding") == "deflate" {
+		dReader, err := zlib.NewReader(resp.Body)
+		defer dReader.Close()
+		if err != nil {
+			return resp, err
+		}
+		resp.Body = dReader
+		resp.Header.Del("Content-Encoding")
+		resp.Header.Del("Content-Length")
+		resp.ContentLength = -1
+		resp.Uncompressed = true
+	}
 
 	// Don't try to decode on 204s
 	if resp.StatusCode == 204 {
